@@ -59,16 +59,22 @@ ENDPROC
 LOCAL PROC send_joints()
 	VAR ROS_msg_joint_data message;
 	VAR jointtarget joints;
+    VAR num rail_position;
 	
     ! get current joint position (degrees)
 	joints := CJointT();
+
+    ! get current rail position (mm)
+    ! TODO(bhomberg): figure out if this actually works....
+     rail_position := DnumToNum(GInputDnum(SPOS));
+    ! rail_position := Position;
     
     ! create message
     message.header := [ROS_MSG_TYPE_JOINT, ROS_COM_TYPE_TOPIC, ROS_REPLY_TYPE_INVALID];
     message.sequence_id := 0;
     message.joints := joints.robax;
-    message.ext_axes := joints.extax;
-    
+    message.rail_position := rail_position;
+
     ! send message to client
     ROS_send_msg_joint_data client_socket, message;
 

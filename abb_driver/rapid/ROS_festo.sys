@@ -1,0 +1,30 @@
+MODULE Festo_Module(SYSMODULE)
+
+    PROC Festo_init()
+        TPWrite "Init Festo";
+	SETGO CPOS_Start,0;
+	SETGO CCON,0;
+	WaitTime .1;
+	SETGO CCON,67;
+	SETGO CDIR,0;
+	SETGO Velocity,0;
+	SETGO Position,0;
+	WaitTime .1;
+    ENDPROC
+
+    PROC Festo_Homing()
+        TPWrite "Home Festo";
+        SetGO CPOS_Start,5;
+    ENDPROC
+
+    PROC Festo_move()
+        SetGO CPOS_Start,1;
+        SETGO Velocity,FESTO_rail_velocity;
+        TPWrite "Setting Festo position: " \Num:=FESTO_rail_position;
+        SETGO Position,FESTO_rail_position;
+        WaitTime .1;
+        SetGO CPOS_Start,3;
+        WaitTime .1;
+        SetGO CPOS_Start,1;
+    ENDPROC
+ENDMODULE
