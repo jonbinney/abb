@@ -69,11 +69,10 @@ PROC main()
                 ENDIF
                 ! Execute move command
                 IF (NOT skip_move) THEN
-		    FESTO_rail_position := trajectory{current_index}.rail_position;
+		            FESTO_rail_position := trajectory{current_index}.rail_position;
                     ! TODO(bhomberg): set velocity to max?
                     FESTO_rail_velocity := 100;
-		    FESTO_move;
-                    TPWrite "festo pos="\Num:=FESTO_rail_position;
+		            FESTO_move;
                     MoveAbsJ target, move_speed, \T:=trajectory{current_index}.duration, stop_mode, tool0;
                 ENDIF
             ENDFOR

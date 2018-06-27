@@ -66,7 +66,8 @@ LOCAL PROC send_joints()
 
     ! get current rail position (mm)
     ! TODO(bhomberg): figure out if this actually works....
-     rail_position := DnumToNum(GInputDnum(SPOS));
+     rail_position := 255*DnumToNum(GInputDnum(SPOS)) + DnumToNum(GInputDnum(SCON));
+    TPWrite "read festo position: " \Num:=rail_position;
     ! rail_position := Position;
     
     ! create message

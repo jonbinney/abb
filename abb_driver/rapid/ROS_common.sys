@@ -44,6 +44,6 @@ PERS bool ROS_new_trajectory := false;       ! can safely READ, but should use l
 
 ! These variables are written in ROS_motion.mod and read in FESTO.mod
 PERS num FESTO_rail_velocity := 50;
-PERS num FESTO_rail_position := 0;
+PERS num FESTO_rail_position := 1;
 
 ENDMODULE

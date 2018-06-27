@@ -147,7 +147,7 @@ PROC ROS_send_msg_joint_data(VAR socketdev client_socket, ROS_msg_joint_data mes
     PackRawBytes ROS_joints.rax_4,    raw_message.data, 21, \Float4;
     PackRawBytes ROS_joints.rax_5,    raw_message.data, 25, \Float4;
     PackRawBytes ROS_joints.rax_6,    raw_message.data, 29, \Float4;
-    FOR i FROM 1 TO ROS_MSG_MAX_JOINTS-6 DO   ! Insert placeholders for joints 7-10 (message expects 10 joints)
+    FOR i FROM 2 TO ROS_MSG_MAX_JOINTS-6 DO   ! Insert placeholders for joints 7-10 (message expects 10 joints)
         PackRawBytes 0,               raw_message.data, 25+i*4, \Float4;
     ENDFOR
 
@@ -163,7 +163,7 @@ ENDFUNC
 
 ! Returns only connected external axes in METERS
 LOCAL FUNC num mm2m_linear_axis(num rail_pos_mm)
-    RETURN rail_pos_mm / 1000;
+    RETURN rail_pos_mm / 1000.0;
 ENDFUNC
 
 
