@@ -17,6 +17,8 @@ PROC main()
         
         Festo_init;
     ENDIF
+    
+    Festo_move;
 ENDPROC
 
 ENDMODULE

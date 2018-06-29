@@ -29,7 +29,7 @@ MODULE ROS_stateServer
 ! WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 LOCAL CONST num server_port := 11002;
-LOCAL CONST num update_rate := 0.10;  ! broadcast rate (sec)
+LOCAL CONST num update_rate := 0.01;  ! broadcast rate (sec)
 
 LOCAL VAR socketdev server_socket;
 LOCAL VAR socketdev client_socket;
@@ -67,7 +67,7 @@ LOCAL PROC send_joints()
     ! get current rail position (mm)
     ! TODO(bhomberg): figure out if this actually works....
      rail_position := 255*DnumToNum(GInputDnum(SPOS)) + DnumToNum(GInputDnum(SCON));
-    TPWrite "read festo position: " \Num:=rail_position;
+    !TPWrite "read festo position: " \Num:=rail_position;
     ! rail_position := Position;
     
     ! create message

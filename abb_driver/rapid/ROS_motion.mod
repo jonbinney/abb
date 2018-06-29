@@ -39,8 +39,6 @@ PROC main()
     VAR speeddata move_speed := v10;  ! default speed
     VAR zonedata stop_mode;
     VAR bool skip_move;
-    VAR num pos := 0;
-    VAR bool increasing := TRUE;
     
     ! Set up interrupt to watch for new trajectory
     IDelete intr_new_trajectory;    ! clear interrupt handler, in case restarted with ExitCycle
@@ -61,7 +59,8 @@ PROC main()
                 target.robax := trajectory{current_index}.joint_pos;
 
                 ! TODO(bhomberg): include rail position in this calculation
-                skip_move := (current_index = 1) AND is_near(target.robax, 0.1);
+                skip_move := (current_index = 1) AND is_near(target.robax, trajectory{current_index}.rail_position, 0.03);
+                !TPWRITE "SKIP MOVE: " \Bool := skip_move;
 
                 stop_mode := DEFAULT_CORNER_DIST;  ! assume we're smoothing between points
                 IF (current_index = trajectory_size) THEN
@@ -71,8 +70,8 @@ PROC main()
                 IF (NOT skip_move) THEN
 		            FESTO_rail_position := trajectory{current_index}.rail_position;
                     ! TODO(bhomberg): set velocity to max?
-                    FESTO_rail_velocity := 100;
-		            FESTO_move;
+                    FESTO_rail_velocity := 25;
+		            !FESTO_move;
                     MoveAbsJ target, move_speed, \T:=trajectory{current_index}.duration, stop_mode, tool0;
                 ENDIF
             ENDFOR
@@ -93,17 +92,20 @@ LOCAL PROC init_trajectory()
       ROS_new_trajectory := FALSE;
     ROS_trajectory_lock := FALSE;         ! release data-lock
 ENDPROC
-LOCAL FUNC bool is_near(robjoint target, num tol)
+LOCAL FUNC bool is_near(robjoint target, num target_rail_pos, num tol)
     VAR jointtarget curr_jnt;
+    VAR num rail_position;
     
     curr_jnt := CJointT();
+    rail_position := 255*DnumToNum(GInputDnum(SPOS)) + DnumToNum(GInputDnum(SCON));
     
     RETURN ( ABS(curr_jnt.robax.rax_1 - target.rax_1) < tol )
        AND ( ABS(curr_jnt.robax.rax_2 - target.rax_2) < tol )
        AND ( ABS(curr_jnt.robax.rax_3 - target.rax_3) < tol )
        AND ( ABS(curr_jnt.robax.rax_4 - target.rax_4) < tol )
        AND ( ABS(curr_jnt.robax.rax_5 - target.rax_5) < tol )
-       AND ( ABS(curr_jnt.robax.rax_6 - target.rax_6) < tol );
+       AND ( ABS(curr_jnt.robax.rax_6 - target.rax_6) < tol )
+       AND ( ABS(rail_position - target_rail_pos) < tol);
 ENDFUNC
 LOCAL PROC abort_trajectory()
     trajectory_size := 0;  ! "clear" local trajectory
