@@ -47,25 +47,34 @@ PROC main()
 
     WHILE true DO
         ! Check for new Trajectory
-        IF (ROS_new_trajectory)
+        IF (ROS_new_trajectory) THEN
+            TPWrite "new trajectory!";
             init_trajectory;
+        ENDIF
 
         ! execute all points in this trajectory
         IF (trajectory_size > 0) THEN
+            TPWrite "executing trajectory";
             FOR current_index FROM 1 TO trajectory_size DO
                 target.robax := trajectory{current_index}.joint_pos;
-                target.extax := trajectory{current_index}.extax_pos;
 
-                skip_move := (current_index = 1) AND is_near(target, 0.1, 0.1);
+                ! TODO(bhomberg): include rail position in this calculation
+                skip_move := (current_index = 1) AND is_near(target.robax, trajectory{current_index}.rail_position, 0.03);
+                !TPWRITE "SKIP MOVE: " \Bool := skip_move;
 
                 stop_mode := DEFAULT_CORNER_DIST;  ! assume we're smoothing between points
-                IF (current_index = trajectory_size) stop_mode := fine;  ! stop at path end
-
+                IF (current_index = trajectory_size) THEN
+                    stop_mode := fine;  ! stop at path end
+                ENDIF
                 ! Execute move command
-                IF (NOT skip_move)
+                IF (NOT skip_move) THEN
+		            FESTO_rail_position := trajectory{current_index}.rail_position;
+                    ! TODO(bhomberg): set velocity to max?
+                    FESTO_rail_velocity := 25;
+		            !FESTO_move;
                     MoveAbsJ target, move_speed, \T:=trajectory{current_index}.duration, stop_mode, tool0;
+                ENDIF
             ENDFOR
-
             trajectory_size := 0;  ! trajectory done
         ENDIF
         
@@ -75,51 +84,43 @@ ERROR
     ErrWrite \W, "Motion Error", "Error executing motion.  Aborting trajectory.";
     abort_trajectory;
 ENDPROC
-
 LOCAL PROC init_trajectory()
     clear_path;                    ! cancel any active motions
-
     WaitTestAndSet ROS_trajectory_lock;  ! acquire data-lock
       trajectory := ROS_trajectory;            ! copy to local var
       trajectory_size := ROS_trajectory_size;  ! copy to local var
       ROS_new_trajectory := FALSE;
     ROS_trajectory_lock := FALSE;         ! release data-lock
 ENDPROC
-
-LOCAL FUNC bool is_near(jointtarget target, num deg_tol, num mm_tol)
+LOCAL FUNC bool is_near(robjoint target, num target_rail_pos, num tol)
     VAR jointtarget curr_jnt;
+    VAR num rail_position;
     
     curr_jnt := CJointT();
+    rail_position := 255*DnumToNum(GInputDnum(SPOS)) + DnumToNum(GInputDnum(SCON));
     
-    RETURN ( ABS(curr_jnt.robax.rax_1 - target.robax.rax_1) < deg_tol )
-       AND ( ABS(curr_jnt.robax.rax_2 - target.robax.rax_2) < deg_tol )
-       AND ( ABS(curr_jnt.robax.rax_3 - target.robax.rax_3) < deg_tol )
-       AND ( ABS(curr_jnt.robax.rax_4 - target.robax.rax_4) < deg_tol )
-       AND ( ABS(curr_jnt.robax.rax_5 - target.robax.rax_5) < deg_tol )
-       AND ( ABS(curr_jnt.robax.rax_6 - target.robax.rax_6) < deg_tol )
-       AND ( ABS(curr_jnt.extax.eax_a - target.extax.eax_a) < mm_tol )
-       AND ( ABS(curr_jnt.extax.eax_b - target.extax.eax_b) < mm_tol )
-       AND ( ABS(curr_jnt.extax.eax_c - target.extax.eax_c) < mm_tol )
-       AND ( ABS(curr_jnt.extax.eax_d - target.extax.eax_d) < mm_tol );
+    RETURN ( ABS(curr_jnt.robax.rax_1 - target.rax_1) < tol )
+       AND ( ABS(curr_jnt.robax.rax_2 - target.rax_2) < tol )
+       AND ( ABS(curr_jnt.robax.rax_3 - target.rax_3) < tol )
+       AND ( ABS(curr_jnt.robax.rax_4 - target.rax_4) < tol )
+       AND ( ABS(curr_jnt.robax.rax_5 - target.rax_5) < tol )
+       AND ( ABS(curr_jnt.robax.rax_6 - target.rax_6) < tol )
+       AND ( ABS(rail_position - target_rail_pos) < tol);
 ENDFUNC
-
 LOCAL PROC abort_trajectory()
     trajectory_size := 0;  ! "clear" local trajectory
     clear_path;
     ExitCycle;  ! restart program
 ENDPROC
-
 LOCAL PROC clear_path()
     IF ( NOT (IsStopMoveAct(\FromMoveTask) OR IsStopMoveAct(\FromNonMoveTask)) )
         StopMove;          ! stop any active motions
     ClearPath;             ! clear queued motion commands
     StartMove;             ! re-enable motions
 ENDPROC
-
 LOCAL TRAP new_trajectory_handler
     IF (NOT ROS_new_trajectory) RETURN;
     
     abort_trajectory;
 ENDTRAP
-
 ENDMODULE

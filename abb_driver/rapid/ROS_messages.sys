@@ -41,7 +41,7 @@ RECORD ROS_msg_joint_traj_pt
     ROS_msg_header header;
     num sequence_id;
     robjoint joints;  ! in DEGREES
-    extjoint ext_axes;
+    num rail_position;  ! in MILLIMETERS
     num velocity;
     num duration;
 ENDRECORD
@@ -50,7 +50,7 @@ RECORD ROS_msg_joint_data
     ROS_msg_header header;
     num sequence_id;
     robjoint joints;  ! in DEGREES
-    extjoint ext_axes;
+    num rail_position;  ! in MILLIMETERS
 ENDRECORD
 
 ! Message Type Codes (from simple_message/simple_message.h)
@@ -103,22 +103,20 @@ PROC ROS_receive_msg_joint_traj_pt(VAR socketdev client_socket, VAR ROS_msg_join
     
     ! Unpack data fields
     UnpackRawBytes raw_message.data, 1, message.sequence_id, \IntX:=DINT;
-    UnpackRawBytes raw_message.data, 5, message.joints.rax_1, \Float4;
-    UnpackRawBytes raw_message.data, 9, message.joints.rax_2, \Float4;
-    UnpackRawBytes raw_message.data, 13, message.joints.rax_3, \Float4;
-    UnpackRawBytes raw_message.data, 17, message.joints.rax_4, \Float4;
-    UnpackRawBytes raw_message.data, 21, message.joints.rax_5, \Float4;
-    UnpackRawBytes raw_message.data, 25, message.joints.rax_6, \Float4;
-    UnpackRawBytes raw_message.data, 29, message.ext_axes.eax_a, \Float4;
-    UnpackRawBytes raw_message.data, 33, message.ext_axes.eax_b, \Float4;
-    UnpackRawBytes raw_message.data, 37, message.ext_axes.eax_c, \Float4;
-    UnpackRawBytes raw_message.data, 41, message.ext_axes.eax_d, \Float4;
-    UnpackRawBytes raw_message.data, 45, message.velocity, \Float4;
-    UnpackRawBytes raw_message.data, 49, message.duration, \Float4;
-
+    UnpackRawBytes raw_message.data, 5, message.rail_position, \Float4;
+    UnpackRawBytes raw_message.data, 9, message.joints.rax_1, \Float4;
+    UnpackRawBytes raw_message.data, 13, message.joints.rax_2, \Float4;
+    UnpackRawBytes raw_message.data, 17, message.joints.rax_3, \Float4;
+    UnpackRawBytes raw_message.data, 21, message.joints.rax_4, \Float4;
+    UnpackRawBytes raw_message.data, 25, message.joints.rax_5, \Float4;
+    UnpackRawBytes raw_message.data, 29, message.joints.rax_6, \Float4;
+    ! Skip bytes 29-44.  UNUSED.  Reserved for Joints 7-10.  TBD: copy to extAx?
+    UnpackRawBytes raw_message.data, 29+(ROS_MSG_MAX_JOINTS-6)*4, message.velocity, \Float4;
+    UnpackRawBytes raw_message.data, 33+(ROS_MSG_MAX_JOINTS-6)*4, message.duration, \Float4;
+    
     ! Convert data from ROS units to ABB units
     message.joints := rad2deg_robjoint(message.joints);
-    message.ext_axes := m2mm_extjoint(message.ext_axes);
+    message.rail_position := m2mm_linear_axis(message.rail_position);
     ! TBD: convert velocity
     
 ERROR
@@ -128,7 +126,7 @@ ENDPROC
 PROC ROS_send_msg_joint_data(VAR socketdev client_socket, ROS_msg_joint_data message)
     VAR ROS_msg raw_message;
     VAR robjoint ROS_joints;
-    VAR extjoint ROS_ext_axes;
+    VAR num ROS_rail_position;
     VAR num i;
     
     ! Force message header to the correct values
@@ -138,20 +136,20 @@ PROC ROS_send_msg_joint_data(VAR socketdev client_socket, ROS_msg_joint_data mes
     
     ! Convert data from ABB units to ROS units
     ROS_joints := deg2rad_robjoint(message.joints);
-    ROS_ext_axes := mm2m_extjoint(message.ext_axes);
+    ROS_rail_position := mm2m_linear_axis(message.rail_position);
 
     ! Pack data into message
     PackRawBytes message.sequence_id, raw_message.data,  1, \IntX:=DINT;
-    PackRawBytes ROS_joints.rax_1,    raw_message.data,  5, \Float4;
-    PackRawBytes ROS_joints.rax_2,    raw_message.data,  9, \Float4;
-    PackRawBytes ROS_joints.rax_3,    raw_message.data, 13, \Float4;
-    PackRawBytes ROS_joints.rax_4,    raw_message.data, 17, \Float4;
-    PackRawBytes ROS_joints.rax_5,    raw_message.data, 21, \Float4;
-    PackRawBytes ROS_joints.rax_6,    raw_message.data, 25, \Float4;
-    PackRawBytes ROS_ext_axes.eax_a,  raw_message.data, 29, \Float4;
-    PackRawBytes ROS_ext_axes.eax_b,  raw_message.data, 33, \Float4;
-    PackRawBytes ROS_ext_axes.eax_c,  raw_message.data, 37, \Float4;
-    PackRawBytes ROS_ext_axes.eax_d,  raw_message.data, 41, \Float4;
+    PackRawBytes ROS_rail_position,   raw_message.data,  5, \Float4;
+    PackRawBytes ROS_joints.rax_1,    raw_message.data,  9, \Float4;
+    PackRawBytes ROS_joints.rax_2,    raw_message.data, 13, \Float4;
+    PackRawBytes ROS_joints.rax_3,    raw_message.data, 17, \Float4;
+    PackRawBytes ROS_joints.rax_4,    raw_message.data, 21, \Float4;
+    PackRawBytes ROS_joints.rax_5,    raw_message.data, 25, \Float4;
+    PackRawBytes ROS_joints.rax_6,    raw_message.data, 29, \Float4;
+    FOR i FROM 2 TO ROS_MSG_MAX_JOINTS-6 DO   ! Insert placeholders for joints 7-10 (message expects 10 joints)
+        PackRawBytes 0,               raw_message.data, 25+i*4, \Float4;
+    ENDFOR
 
     ROS_send_msg client_socket, raw_message;
 
@@ -163,33 +161,15 @@ LOCAL FUNC num deg2rad(num deg)
     RETURN deg * pi / 180;
 ENDFUNC
 
-LOCAL FUNC num connected_eax(num eax)
-    ! The value 9E9 is defined for axes which are not connected
-    IF eax <> 9E9 THEN
-        RETURN eax;
-    ENDIF
-    RETURN 0;
+! Returns only connected external axes in METERS
+LOCAL FUNC num mm2m_linear_axis(num rail_pos_mm)
+    RETURN rail_pos_mm / 1000.0;
 ENDFUNC
 
-! Returns only connected external axes in METERS
-LOCAL FUNC extjoint mm2m_extjoint(extjoint all_eax)
-    VAR extjoint eax;
-    eax.eax_a := connected_eax(all_eax.eax_a) / 1000;
-    eax.eax_b := connected_eax(all_eax.eax_b) / 1000;
-    eax.eax_c := connected_eax(all_eax.eax_c) / 1000;
-    eax.eax_d := connected_eax(all_eax.eax_d) / 1000;
-    RETURN eax;
-ENDFUNC
 
 ! Returns external axes in MILLIMETERS
-LOCAL FUNC extjoint m2mm_extjoint(extjoint eax_in_m)
-    VAR extjoint eax_in_mm;
-    eax_in_mm.eax_a := eax_in_m.eax_a * 1000;
-    eax_in_mm.eax_b := eax_in_m.eax_b * 1000;
-    eax_in_mm.eax_c := eax_in_m.eax_c * 1000;
-    eax_in_mm.eax_d := eax_in_m.eax_d * 1000;
-    
-    RETURN eax_in_mm;
+LOCAL FUNC num m2mm_linear_axis(num rail_pos_m)
+    RETURN rail_pos_m * 1000;
 ENDFUNC
 
 LOCAL FUNC robjoint deg2rad_robjoint(robjoint deg)

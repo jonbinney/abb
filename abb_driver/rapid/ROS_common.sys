@@ -30,7 +30,7 @@ MODULE ROS_common(SYSMODULE)
 
 RECORD ROS_joint_trajectory_pt
 	robjoint joint_pos;
-    extjoint extax_pos;
+	num rail_position;
 	num duration;
 ENDRECORD
 
@@ -41,5 +41,9 @@ PERS bool ROS_trajectory_lock := false;
 PERS ROS_joint_trajectory_pt ROS_trajectory{MAX_TRAJ_LENGTH};
 PERS num ROS_trajectory_size := 0;
 PERS bool ROS_new_trajectory := false;       ! can safely READ, but should use lock to WRITE
+
+! These variables are written in ROS_motion.mod and read in FESTO.mod
+PERS num FESTO_rail_velocity := 50;
+PERS num FESTO_rail_position := 1;
 
 ENDMODULE
